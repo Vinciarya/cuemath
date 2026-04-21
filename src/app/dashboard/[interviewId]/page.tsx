@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { ShareableLink } from "@/components/ShareableLink";
 import { normalizeInterviewScript } from "@/lib/questions";
 import { createClient } from "@/lib/server";
+import { getBaseUrl } from "@/lib/url";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -66,7 +67,7 @@ export default async function InterviewResultsPage({
     throw new Error(sessionsError.message);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = getBaseUrl();
   const shareableUrl = `${appUrl.replace(/\/$/, "")}/interview/${interview.token}`;
 
   return (

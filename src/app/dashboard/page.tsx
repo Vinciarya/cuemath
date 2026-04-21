@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { CreateInterview } from "@/components/CreateInterview";
 import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/server";
+import { getBaseUrl } from "@/lib/url";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
     throw new Error(error.message);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = getBaseUrl();
 
   const rows =
     interviews?.map((interview) => {
