@@ -35,7 +35,7 @@ const questions = [
 
 const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
 const voiceId = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
-const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5';
+const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_v3';
 
 if (!elevenLabsApiKey) {
   console.error('Error: ELEVENLABS_API_KEY is missing from .env.');

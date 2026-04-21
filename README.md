@@ -1,88 +1,88 @@
-# CueMath AI - AI-Powered Voice Interviewer for Hiring 💼
+# TutorScreen AI
 
-CueMath AI is an intelligent hiring platform that lets companies conduct AI-powered voice interviews with candidates — automatically, at scale.
+## What I Built
 
-## Key Features
+TutorScreen AI is a Cuemath recruiter workflow for creating voice interview links, collecting candidate responses, and automatically analyzing interviews with AI scoring. The app includes:
 
-- **🎯 Interview Creation:** Instantly generate tailored interview questions from any job description.
-- **🔗 One-Click Sharing:** Generate and share unique interview links with candidates in seconds.
-- **🎙️ AI Voice Interviews:** Let our AI conduct natural, conversational interviews that adapt to candidate responses.
-- **📊 Smart Analysis:** Get detailed insights and scores for each interview response, powered by advanced AI.
-- **📈 Comprehensive Dashboard:** Track all candidate performances and overall stats.
+- Supabase password auth for recruiters
+- Recruiter dashboard to create and review interviews
+- Public candidate interview flow with microphone-based responses
+- Pre-generated AI voice prompts for the interview questions
+- Transcript analysis and scorecards stored in Supabase
 
-## Initial Setup
+## Problem 3: AI Tutor Screener
 
-1. Clone the project.
+This project solves the "AI Tutor Screener" problem by giving the hiring team a structured, repeatable voice interview flow. Candidates receive a public interview link, respond to audio prompts, and the system stores a transcript plus a rubric-based recommendation for recruiter review.
 
-```bash
-git clone https://github.com/your-org/cuematch-ai.git
-```
+## Key Decisions
 
-2. Copy the existing environment template file
+- Supabase Auth over Clerk: simpler stack, fewer moving parts, and direct alignment with the database layer
+- Pre-generated ElevenLabs audio: human voice quality with zero runtime generation cost during interviews
+- Web Speech API for STT: simple browser-native speech recognition without adding another paid runtime dependency
+- Gemini Flash for scoring: fast transcript evaluation with structured JSON output
+- Indian English `en-IN`: better language tuning for the candidate interview experience
 
-```bash
-cp .env.example .env
-```
+## Known Limitations
 
-## Clerk Setup ([Clerk](https://clerk.com/))
+- Chrome only for STT. The current speech recognition flow depends on `webkitSpeechRecognition`, so the voice interview is effectively Chrome-only today.
 
-We use Clerk for authentication. Set up Clerk environment variables in the `.env` file. The free plan should be more than enough.
+## What I'd improve
 
-1. Navigate to [Clerk](https://dashboard.clerk.com/) and create an application following the [setup guide](https://clerk.com/docs/quickstarts/setup-clerk).
-2. Your `.env` (NOT `.env.local`) file should have the `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` variables populated with **no inverted commas**.
-3. Enable organizations in your Clerk application by navigating to the Organization Settings page.
-4. Make sure you create an organization and invite your email to it.
+- Whisper API for STT to remove the Chrome-only browser dependency
+- Real-time follow-up generation instead of static follow-up prompts
+- Email reports with scorecards and recruiter summaries after each interview
 
-## Database Setup ([Supabase](https://supabase.com/))
+## Tech Stack
 
-Supabase is used for storing the data. It's really simple to set up and the free plan should suffice.
+| Layer | Choice |
+| --- | --- |
+| Framework | Next.js App Router |
+| Auth | Supabase Auth |
+| Database | Supabase Postgres |
+| Styling | Tailwind CSS |
+| Recruiter UI | Custom React + Tailwind |
+| Candidate Voice UI | React + Framer Motion |
+| TTS | ElevenLabs pre-generated MP3 files |
+| STT | Web Speech API (`webkitSpeechRecognition`) |
+| Evaluation | Gemini Flash |
+| Hosting | Vercel |
 
-1. Create a project (note down your project's password)
-2. Go to SQL Editor and copy the SQL code from `supabase_schema.sql`
-3. Run the SQL code to confirm the tables are created.
-4. Copy the Supabase URL and anon key from the project settings and paste them in the `.env` file under `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+## Local Setup
 
-## Retell AI Setup ([Retell AI](https://retellai.com/))
-
-We use Retell AI to manage all the voice calls. They handle storage of recordings and provide a simple SDK to integrate with.
-
-1. Create an API key from [Retell AI Dashboard](https://dashboard.retellai.com/apiKey) and add it to the `.env` file under `RETELL_API_KEY`
-
-## Add OpenAI API Key
-
-We use OpenAI to generate questions for interviews and analyze responses.
-
-1. Go to [OpenAI](https://platform.openai.com/api-keys) and create an API key
-2. Add the API key to the `.env` file under `OPENAI_API_KEY`
-
-## Getting Started Locally
-
-First install the packages:
+1. Install dependencies:
 
 ```bash
-yarn
+npm install
 ```
 
-Run the development server:
+2. Create `.env.local` with the required values:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+GEMINI_API_KEY=
+ELEVENLABS_API_KEY=
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+3. Run the app:
 
 ```bash
-yarn dev
+npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Vercel Deploy Commands
 
-## Self Hosting
-
-We recommend using [Vercel](https://vercel.com/) to host the app.
-
-## Contributing
-
-If you'd like to contribute to CueMath AI, feel free to fork the repository, make your changes, and submit a pull request. Contributions are welcomed and appreciated.
-
-## Contact
-
-If you have any questions or feedback, feel free to reach out to us.
-
-## License
-
-The software code is licensed under the MIT License.
+```bash
+npm install -g vercel
+vercel login
+vercel
+vercel env add NEXT_PUBLIC_SUPABASE_URL
+vercel env add NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+vercel env add SUPABASE_SERVICE_ROLE_KEY
+vercel env add GEMINI_API_KEY
+vercel env add ELEVENLABS_API_KEY
+vercel env add NEXT_PUBLIC_APP_URL
+vercel --prod
+```
