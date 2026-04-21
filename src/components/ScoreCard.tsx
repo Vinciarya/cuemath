@@ -1,15 +1,16 @@
 import type { ScoreCard as ScoreCardType } from "@/types";
+import { CheckCircle2, AlertCircle, TrendingUp, Quote } from "lucide-react";
 
 type ScoreCardProps = {
   scorecard: ScoreCardType;
   candidateName?: string | null;
 };
 
-const recommendationStyles: Record<ScoreCardType["recommendation"], string> = {
-  strong_yes: "bg-emerald-100 text-emerald-800",
-  yes: "bg-sky-100 text-sky-800",
-  no: "bg-amber-100 text-amber-800",
-  strong_no: "bg-rose-100 text-rose-800",
+const recommendationStyles: Record<ScoreCardType["recommendation"], { label: string, color: string, bg: string, border: string }> = {
+  strong_yes: { label: "Strong Hire", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" },
+  yes: { label: "Hire", color: "text-sky-700", bg: "bg-sky-50", border: "border-sky-100" },
+  no: { label: "Do Not Hire", color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" },
+  strong_no: { label: "Strongly Rejected", color: "text-rose-700", bg: "bg-rose-50", border: "border-rose-100" },
 };
 
 export function ScoreCard({ scorecard, candidateName }: ScoreCardProps) {
@@ -17,70 +18,98 @@ export function ScoreCard({ scorecard, candidateName }: ScoreCardProps) {
     [keyof ScoreCardType["dimensions"], ScoreCardType["dimensions"][keyof ScoreCardType["dimensions"]]]
   >;
 
-  const isFailed = scorecard.summary.toLowerCase().includes("failed");
+  const isFailed = scorecard.summary.toLowerCase().includes("failed") || 
+                   scorecard.summary.toLowerCase().includes("error") || 
+                   scorecard.overall_score <= 1;
+
+  const recommendation = recommendationStyles[scorecard.recommendation] || recommendationStyles.no;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {isFailed && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900 shadow-sm">
-          <div className="flex items-center gap-3 font-bold mb-2 uppercase tracking-widest text-xs">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-200 text-amber-900 font-sans">!</span>
-            AI Analysis Failed
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/50 p-6 text-amber-900 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-3 font-bold mb-3 uppercase tracking-[0.2em] text-[10px]">
+            <AlertCircle className="h-4 w-4" />
+            Evaluation Incomplete
           </div>
-          <p className="text-sm leading-relaxed">
-            We couldn't generate a detailed AI evaluation for this session (likely due to a temporary API hiccup or a very short transcript). The scores below are <strong>default placeholders</strong> and do not reflect the actual performance. Please review the transcript manually.
+          <p className="text-sm leading-relaxed font-medium">
+            The AI evaluation could not be fully generated. This typically happens if the conversation was too brief or interrupted. 
+            The scores below are <strong>initial estimates</strong> and should be verified against the conversation log.
           </p>
         </div>
       )}
 
-      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/40">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-3">
-            <p className="text-sm font-medium uppercase tracking-[0.16em] text-sky-700">Scorecard</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-              {candidateName ? `${candidateName}'s evaluation` : "Candidate evaluation"}
+      {/* Header Section */}
+      <section className="rounded-[2.5rem] border border-slate-200 bg-white p-10 shadow-[0_20px_50px_rgba(0,0,0,0.04)]">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-4 flex-1">
+            <div className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-sky-800">
+              <TrendingUp className="h-3 w-3" />
+              Evaluation Report
+            </div>
+            <h1 className="text-4xl font-semibold tracking-tight text-slate-950">
+              {candidateName ? `${candidateName}` : "Candidate Evaluation"}
             </h1>
-            <p className="max-w-2xl text-sm leading-7 text-slate-600">{scorecard.summary}</p>
+            <div className="max-w-2xl text-lg leading-relaxed text-slate-600 font-medium italic">
+              &ldquo;{scorecard.summary}&rdquo;
+            </div>
           </div>
 
-          <div className="space-y-3 lg:text-right">
-            <p className="text-sm text-slate-500">Overall score</p>
-            <p className="text-5xl font-semibold tracking-tight text-slate-950">
-              {scorecard.overall_score}
-            </p>
-            <span
-              className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] ${recommendationStyles[scorecard.recommendation]}`}
-            >
-              {scorecard.recommendation.replace("_", " ")}
-            </span>
+          <div className="flex flex-col items-center lg:items-end gap-4 shrink-0">
+            <div className="relative flex h-32 w-32 items-center justify-center rounded-full bg-slate-50 border-4 border-slate-100 shadow-inner">
+               <div className="text-center">
+                  <span className="text-4xl font-bold text-slate-900">{scorecard.overall_score}</span>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Score</p>
+               </div>
+            </div>
+            <div className={`flex items-center gap-2 rounded-full ${recommendation.bg} ${recommendation.border} border px-6 py-2 text-xs font-bold uppercase tracking-[0.15em] ${recommendation.color}`}>
+              <CheckCircle2 className="h-4 w-4" />
+              {recommendation.label}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {/* Dimensions Grid */}
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {entries.map(([dimension, details]) => (
           <div
             key={dimension}
-            className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-md shadow-slate-200/30"
+            className="group rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm transition-all hover:shadow-xl hover:shadow-slate-200/40 hover:-translate-y-1"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.16em] text-sky-700">
-                  {dimension}
-                </p>
-                <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
-                  {details.score}
-                  <span className="text-base text-slate-400">/10</span>
-                </p>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-700">
+                {dimension}
+              </h3>
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-2xl font-bold text-slate-950">{details.score}</span>
+                <span className="text-xs font-bold text-slate-400">/10</span>
               </div>
             </div>
-            <p className="mt-4 text-sm leading-7 text-slate-600">{details.reasoning}</p>
-            <blockquote className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm italic text-slate-500">
-              “{details.quote || "No direct quote captured."}”
-            </blockquote>
+            
+            {/* Progress Bar */}
+            <div className="h-1.5 w-full bg-slate-100 rounded-full mb-6 overflow-hidden">
+               <div 
+                 className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out" 
+                 style={{ width: `${details.score * 10}%` }} 
+               />
+            </div>
+
+            <p className="text-sm leading-relaxed text-slate-600 mb-6 font-medium">
+              {details.reasoning}
+            </p>
+
+            {details.quote && (
+              <div className="relative rounded-2xl bg-slate-50 p-5 pt-8">
+                <Quote className="absolute top-4 left-4 h-5 w-5 text-slate-200" />
+                <p className="text-xs italic text-slate-500 leading-relaxed relative z-10">
+                  {details.quote}
+                </p>
+              </div>
+            )}
           </div>
         ))}
-      </section>
+      </div>
     </div>
   );
 }

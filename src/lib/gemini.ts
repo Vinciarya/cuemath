@@ -3,28 +3,60 @@ import "server-only";
 import type { ScoreCard, TranscriptEntry } from "@/types";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = "gemini-1.5-flash";
+const GEMINI_MODEL = "gemini-flash-latest";
+
+if (!GEMINI_API_KEY) {
+  console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables.");
+}
+
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-const SYSTEM_PROMPT = `You are an expert hiring evaluator for Cuemath, an ed-tech company that hires math tutors. Score the candidate on 5 dimensions (1-10): CLARITY (logical explanation, no jargon), WARMTH (welcoming and encouraging tone), SIMPLICITY (kid-friendly language and analogies), PATIENCE (handles confusion well), FLUENCY (confident natural English). For each dimension give: score (1-10), 1-2 sentence reasoning, one direct quote from the transcript. Then give overall_score as weighted average (clarity 25%, warmth 20%, simplicity 25%, patience 20%, fluency 10%), recommendation ('strong_yes'|'yes'|'no'|'strong_no'), summary (2-3 sentences). Return ONLY valid JSON, no markdown, no backticks.`;
+const SYSTEM_PROMPT = `You are a high-level hiring evaluator for Cuemath. Your task is to provide a professional, deep, and constructive evaluation of a math tutor candidate based on their interview transcript.
+
+Score the candidate across 5 key dimensions (1-10):
+1. CLARITY: Ability to explain complex math concepts simply and logically.
+2. WARMTH: Friendly, welcoming, and encouraging tone suitable for kids.
+3. SIMPLICITY: Use of relatable analogies and avoiding technical jargon.
+4. PATIENCE: How they handle follow-up questions or student confusion.
+5. FLUENCY: General communication skills and confidence in English.
+
+For every dimension, provide:
+- score (1-10)
+- reasoning (1-2 sharp, professional sentences)
+- quote (the most representative direct quote from the transcript)
+
+Then provide:
+- overall_score: Weighted average (Clarity 25%, Warmth 20%, Simplicity 25%, Patience 20%, Fluency 10%) rounded to 1 decimal.
+- recommendation: Exactly one of 'strong_yes', 'yes', 'no', or 'strong_no'.
+- summary: A clear, executive 3-4 sentence summary of the candidate's performance, highlighting their biggest strength and potential areas for growth.
+
+RETURN ONLY VALID JSON. Do not include markdown code blocks.`;
 
 export async function analyzeTranscript(transcript: TranscriptEntry[]): Promise<ScoreCard> {
   const fallbackScoreCard: ScoreCard = {
     dimensions: {
-      clarity: { score: 5, reasoning: "Analysis failed.", quote: "" },
-      warmth: { score: 5, reasoning: "Analysis failed.", quote: "" },
-      simplicity: { score: 5, reasoning: "Analysis failed.", quote: "" },
-      patience: { score: 5, reasoning: "Analysis failed.", quote: "" },
-      fluency: { score: 5, reasoning: "Analysis failed.", quote: "" },
+      clarity: { score: 1, reasoning: "Evaluation could not be generated due to insufficient data or technical error.", quote: "N/A" },
+      warmth: { score: 1, reasoning: "Evaluation could not be generated due to insufficient data or technical error.", quote: "N/A" },
+      simplicity: { score: 1, reasoning: "Evaluation could not be generated due to insufficient data or technical error.", quote: "N/A" },
+      patience: { score: 1, reasoning: "Evaluation could not be generated due to insufficient data or technical error.", quote: "N/A" },
+      fluency: { score: 1, reasoning: "Evaluation could not be generated due to insufficient data or technical error.", quote: "N/A" },
     },
-    overall_score: 5,
+    overall_score: 1,
     recommendation: "no",
-    summary: "Analysis failed - please review transcript manually.",
+    summary: "AI evaluation stalled. This usually happens if the transcript is too short or the conversation was disconnected prematurely. Please review the manual transcript logs.",
   };
 
   if (!GEMINI_API_KEY) {
     console.error("GEMINI_API_KEY is not defined");
     return fallbackScoreCard;
+  }
+
+  // Filter out very short or empty transcripts to avoid API errors
+  if (!transcript || transcript.length < 2) {
+    return {
+      ...fallbackScoreCard,
+      summary: "Transcript is too short to provide a meaningful AI evaluation. Minimum 2 dialogue turns required."
+    };
   }
 
   const transcriptText = transcript
@@ -41,30 +73,34 @@ export async function analyzeTranscript(transcript: TranscriptEntry[]): Promise<
         contents: [
           {
             role: "user",
-            parts: [{ text: SYSTEM_PROMPT }, { text: `Transcript:\n${transcriptText}` }],
+            parts: [{ text: SYSTEM_PROMPT }, { text: `Transcript for Analysis:\n${transcriptText}` }],
           },
         ],
+        generationConfig: {
+          response_mime_type: "application/json",
+          temperature: 0.1,
+        },
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Gemini API error (${response.status}): ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();
     const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!textResponse) {
-      throw new Error("Empty response from Gemini API");
+      throw new Error("No text response in Gemini payload");
     }
 
-    const cleanJson = textResponse.replace(/```json|```/g, "").trim();
-    return JSON.parse(cleanJson) as ScoreCard;
+    return JSON.parse(textResponse) as ScoreCard;
   } catch (error) {
-    console.error("Error analyzing transcript:", error);
+    console.error("Critical error in analyzeTranscript:", error);
     return {
       ...fallbackScoreCard,
-      summary: `Analysis failed - System error or empty transcript. Details: ${error instanceof Error ? error.message : "Unknown error"}`,
+      summary: `AI Evaluation Error: ${error instanceof Error ? error.message : "The system encountered an unexpected bottleneck. Please check the transcript manually."}`
     };
   }
 }

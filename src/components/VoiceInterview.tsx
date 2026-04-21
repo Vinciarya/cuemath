@@ -235,10 +235,11 @@ export function VoiceInterview({
   );
 
   const handleResponse = useCallback(
-    async (candidateText: string) => {
+    async (candidateText: string, isFinalForceEnd = false) => {
       const trimmedText = candidateText.trim();
 
-      if (!trimmedText || isProcessingRef.current) {
+      // We allow empty text ONLY if it's a force-end signal
+      if (!isFinalForceEnd && (!trimmedText || isProcessingRef.current)) {
         return;
       }
 
@@ -263,7 +264,7 @@ export function VoiceInterview({
           return;
         }
 
-        if (currentQuestionIndexRef.current < CUEMATH_QUESTIONS.length - 1) {
+        if (!isFinalForceEnd && currentQuestionIndexRef.current < CUEMATH_QUESTIONS.length - 1) {
           const nextIndex = currentQuestionIndexRef.current + 1;
           currentQuestionIndexRef.current = nextIndex;
           askedFollowUpRef.current = false;
@@ -278,6 +279,14 @@ export function VoiceInterview({
 
         // --- FINAL WRAP UP ---
         setInterviewState("thank-you");
+        
+        // Append Closing Message to transcript
+        const finalTranscript = appendTranscript({
+          role: "ai",
+          content: CLOSING_MESSAGE,
+          timestamp: nowIso(),
+        });
+
         await playClosingMessage();
         
         // Stop recording
@@ -292,11 +301,11 @@ export function VoiceInterview({
            
            const recordingBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
            
-           // Background Analysis
+           // Background Analysis - Using the final transcript with closing msg
            fetch("/api/analyze", {
              method: "POST",
              headers: { "Content-Type": "application/json" },
-             body: JSON.stringify({ sessionId, transcript: updatedTranscript }),
+             body: JSON.stringify({ sessionId, transcript: finalTranscript }),
            }).catch(e => console.error("BG analysis error", e));
 
            // Background Audio Upload
@@ -350,19 +359,14 @@ export function VoiceInterview({
   }, [speakPrompt]);
 
   const handleDoneTalking = useCallback(() => {
-    // Force allow done talking if we have any text, regardless of state
     const manualTranscript = interimTranscript.trim();
-
-    if (!manualTranscript) {
-      // If empty, we just restart listening to give them another shot
-      startListening();
-      return;
-    }
+    // If no transcript, we treat it as an explicit signal to END the entire interview
+    const isForceEnd = !manualTranscript;
 
     handledCurrentSpeechRef.current = true;
     stopRecognition();
-    void handleResponse(manualTranscript);
-  }, [handleResponse, interimTranscript, startListening, stopRecognition]);
+    void handleResponse(manualTranscript, isForceEnd);
+  }, [handleResponse, interimTranscript, stopRecognition]);
 
   useEffect(() => {
     isMountedRef.current = true;
