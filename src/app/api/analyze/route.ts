@@ -55,14 +55,21 @@ export async function POST(request: Request) {
 
   // 2. Perform AI Analysis
   const scorecard = await analyzeTranscript(body.transcript);
-  console.log(`[Analyze] Evaluation complete, updating database scorecard...`);
+  console.log(`[Analyze] Evaluation complete for ${body.sessionId}`);
 
   // 3. Update the session with the scorecard results
+  // Ensure overall_score is a valid integer to avoid "invalid input syntax for type integer"
+  const rawScore = scorecard.overall_score;
+  const roundedScore = typeof rawScore === 'number' ? Math.round(rawScore) : 
+                       typeof rawScore === 'string' ? Math.round(parseFloat(rawScore)) : 1;
+
+  console.log(`[Analyze] Updating database scorecard. Overall: ${roundedScore}`);
+
   const { error: updateError } = await admin
     .from("sessions")
     .update({
       scorecard,
-      overall_score: Math.round(scorecard.overall_score),
+      overall_score: Number.isNaN(roundedScore) ? 1 : roundedScore,
       recommendation: scorecard.recommendation,
       status: "analyzed",
       completed_at: new Date().toISOString(),
@@ -70,8 +77,12 @@ export async function POST(request: Request) {
     .eq("id", body.sessionId);
 
   if (updateError) {
-    console.error(`[Analyze] Scorecard update FAILED:`, updateError);
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    console.error(`[Analyze] Scorecard update FAILED for ${body.sessionId}:`, updateError);
+    return NextResponse.json({ 
+      error: updateError.message,
+      details: updateError.details,
+      code: updateError.code
+    }, { status: 500 });
   }
 
   console.log(`[Analyze] Session ${body.sessionId} fully processed.`);
