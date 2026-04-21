@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/client'
@@ -21,20 +21,40 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
+
+  // Handle countdown for rate limiting
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [cooldown])
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (cooldown > 0) {
+      setError(`Please wait ${cooldown} seconds before trying again.`)
+      return
+    }
+
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
-      // The url which will be included in the email. This URL needs to be configured in your redirect URLs in the Supabase dashboard at https://supabase.com/dashboard/project/_/auth/url-configuration
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/update-password`,
       })
-      if (error) throw error
+      if (error) {
+        if (error.message.toLowerCase().includes('rate limit')) {
+          setCooldown(60)
+        }
+        throw error
+      }
       setSuccess(true)
+      setCooldown(60) // Successful request also triggers cooldown
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {
@@ -52,9 +72,17 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              If you registered using your email and password, you will receive a password reset
-              email.
+              If an account with that email exists, you will receive a reset link shortly.
+              You can try again in {cooldown}s if needed.
             </p>
+            <Button 
+                variant="outline" 
+                className="mt-6 w-full" 
+                onClick={() => setSuccess(false)}
+                disabled={cooldown > 0}
+            >
+                {cooldown > 0 ? `Wait ${cooldown}s to resend` : 'Try again'}
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -80,8 +108,8 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
                   />
                 </div>
                 {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Sending...' : 'Send reset email'}
+                <Button type="submit" className="w-full" disabled={isLoading || cooldown > 0}>
+                  {isLoading ? 'Sending...' : cooldown > 0 ? `Wait ${cooldown}s` : 'Send reset email'}
                 </Button>
               </div>
               <div className="mt-4 text-center text-sm">

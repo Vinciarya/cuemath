@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/client'
@@ -23,10 +23,25 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
   const [repeatPassword, setRepeatPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
   const router = useRouter()
+
+  // Handle countdown for rate limiting
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [cooldown])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (cooldown > 0) {
+      setError(`Please wait ${cooldown} seconds before trying again.`)
+      return
+    }
+
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
@@ -45,7 +60,13 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
           emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       })
-      if (error) throw error
+      if (error) {
+        // Specifically catch email rate limit errors
+        if (error.message.toLowerCase().includes('rate limit')) {
+          setCooldown(60) // 1 minute cooldown
+        }
+        throw error
+      }
       router.push('/auth/sign-up-success')
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred')
@@ -100,8 +121,8 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
                 />
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Creating an account...' : 'Sign up'}
+              <Button type="submit" className="w-full" disabled={isLoading || cooldown > 0}>
+                {isLoading ? 'Creating account...' : cooldown > 0 ? `Wait ${cooldown}s` : 'Sign up'}
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">
