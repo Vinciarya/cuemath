@@ -1,23 +1,23 @@
-export interface Organization {
+export interface Recruiter {
   id: string;
-  clerk_org_id: string;
-  name: string;
+  email: string;
+  name?: string | null;
   created_at: string;
 }
 
 export interface Interview {
   id: string;
-  org_id: string;
+  recruiter_id?: string | null;
   title: string;
   token: string;
-  questions: any;
+  questions: unknown;
   status: string;
   created_at: string;
 }
 
 export interface Session {
   id: string;
-  interview_id: string;
+  interview_id?: string | null;
   candidate_name?: string | null;
   candidate_email?: string | null;
   transcript?: TranscriptEntry[] | null;
@@ -31,23 +31,28 @@ export interface Session {
 }
 
 export interface TranscriptEntry {
-  role: 'ai' | 'candidate';
+  role: "ai" | "candidate";
   content: string;
   timestamp: string;
 }
 
-export interface DimensionScore {
+export interface Dimension {
   score: number;
   reasoning: string;
   quote: string;
 }
 
 export interface ScoreCard {
-  clarity: DimensionScore;
-  warmth: DimensionScore;
-  simplicity: DimensionScore;
-  patience: DimensionScore;
-  fluency: DimensionScore;
+  dimensions: {
+    clarity: Dimension;
+    warmth: Dimension;
+    simplicity: Dimension;
+    patience: Dimension;
+    fluency: Dimension;
+  };
+  overall_score: number;
+  recommendation: Recommendation;
+  summary: string;
 }
 
-export type Recommendation = 'strong_yes' | 'yes' | 'no' | 'strong_no';
+export type Recommendation = "strong_yes" | "yes" | "no" | "strong_no";

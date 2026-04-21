@@ -3,87 +3,120 @@
 @tailwind utilities;
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-@layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary-foreground: 222 47% 11%;
 
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 214 95% 93%;
+    --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
 
-    --radius: 0.5rem;
+    --radius: 0.875rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 222 47% 8%;
     --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
+    --card: 222 47% 10%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 47% 10%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
 
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 217 33% 18%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 217 33% 18%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
+    --accent: 217 33% 18%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 224 76% 65%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at top, rgba(59, 130, 246, 0.12), transparent 28%),
+      linear-gradient(180deg, rgba(248, 250, 252, 0.94), rgba(255, 255, 255, 1));
+    min-height: 100vh;
   }
 }
 
-.cl-logoImage {
-  width: 100px !important;
-  height: 100px !important;
+@layer components {
+  .auth-shell {
+    @apply relative flex min-h-svh w-full items-center justify-center overflow-hidden px-6 py-10 md:px-10;
+  }
+
+  .auth-shell::before {
+    background:
+      radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.22), transparent 22%),
+      radial-gradient(circle at 80% 10%, rgba(14, 165, 233, 0.16), transparent 18%),
+      radial-gradient(circle at 50% 100%, rgba(15, 23, 42, 0.08), transparent 30%);
+    content: "";
+    inset: 0;
+    position: absolute;
+  }
+
+  .auth-grid {
+    @apply relative z-10 grid w-full max-w-6xl gap-10 lg:grid-cols-[1.15fr_0.85fr];
+  }
+
+  .auth-panel {
+    @apply hidden rounded-[2rem] border border-white/60 bg-slate-950 px-10 py-12 text-white shadow-2xl shadow-slate-950/10 lg:flex lg:flex-col lg:justify-between;
+    background-image:
+      radial-gradient(circle at top right, rgba(125, 211, 252, 0.18), transparent 30%),
+      linear-gradient(160deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.94));
+  }
+
+  .auth-panel-chip {
+    @apply inline-flex w-fit items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-sky-100;
+  }
+
+  .auth-form-wrap {
+    @apply flex items-center justify-center;
+  }
+
+  .auth-form-frame {
+    @apply w-full max-w-md;
+  }
 }
