@@ -92,7 +92,7 @@ export default async function InterviewResultsPage({
         <div className="overflow-x-auto">
           <table className="min-w-full border-separate border-spacing-y-3">
             <thead>
-              <tr className="text-left text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+              <tr className="text-left text-xs font-black uppercase tracking-[0.2em] text-slate-500">
                 <th className="pb-2">Candidate Name</th>
                 <th className="pb-2">Email</th>
                 <th className="pb-2">Score</th>
@@ -112,7 +112,7 @@ export default async function InterviewResultsPage({
                   <td className="px-4 py-4">{session.overall_score ?? "-"}</td>
                   <td className="px-4 py-4">
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] ${recommendationBadge(session.recommendation)}`}
+                      className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] ${recommendationBadge(session.recommendation)}`}
                     >
                       {(session.recommendation ?? "pending").replace("_", " ")}
                     </span>
