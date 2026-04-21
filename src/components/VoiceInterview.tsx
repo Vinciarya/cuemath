@@ -324,10 +324,9 @@ export function VoiceInterview({
         await playClosingMessage();
 
         const performFinalTasks = async () => {
-          // Wait for the media recorder to finish stopping and flushing chunks
+          // 1. Ensure recorder is fully stopped
           if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
             mediaRecorderRef.current.stop();
-            // Wait for onstop to trigger and clear any internal buffers
             await new Promise((resolve) => setTimeout(resolve, 1500));
           } else {
             await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -336,15 +335,21 @@ export function VoiceInterview({
           const recorderMimeType = mediaRecorderRef.current?.mimeType || "audio/webm";
           const recordingBlob = new Blob(audioChunksRef.current, { type: recorderMimeType });
 
-          console.log("Final blob created:", recordingBlob.size, recorderMimeType);
+          setInterviewState("processing"); // Show 'Wrapping up' UI
 
-          fetch("/api/analyze", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId, transcript: finalTranscript }),
-          }).catch((error) => console.error("BG analysis error", error));
+          // 2. Await analysis so it's ready when we redirect
+          try {
+            await fetch("/api/analyze", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId, transcript: finalTranscript }),
+            });
+          } catch (error) {
+            console.error("Analysis error:", error);
+          }
 
-          if (recordingBlob.size > 100) { // Only upload if it's not and empty header
+          // 3. Background upload of audio (less critical, can be async)
+          if (recordingBlob.size > 100) {
             const formData = new FormData();
             const extension = recorderMimeType.includes("mp4") ? "mp4" : "webm";
             formData.append("audio", recordingBlob, `${sessionId}.${extension}`);
@@ -353,9 +358,7 @@ export function VoiceInterview({
             fetch("/api/upload-audio", {
               method: "POST",
               body: formData,
-            }).catch((error) => console.error("Audio upload error", error));
-          } else {
-            console.warn("Skipping audio upload: blob too small or empty");
+            }).catch((error) => console.error("Audio upload error:", error));
           }
 
           if (isMountedRef.current) {

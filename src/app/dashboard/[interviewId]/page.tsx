@@ -76,7 +76,7 @@ export default async function InterviewResultsPage({
           ← Back to dashboard
         </Link>
         <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/40">
-          <p className="text-sm font-medium uppercase tracking-[0.16em] text-sky-700">Interview Overview</p>
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-sky-800">Interview Overview</p>
           <h1 className={`${fraunces.className} mt-4 text-4xl font-semibold tracking-tight text-slate-950`}>
             {interview.title}
           </h1>

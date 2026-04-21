@@ -41,14 +41,28 @@ export async function POST(request: Request) {
     }
   }
 
-  const scorecard = await analyzeTranscript(body.transcript);
+  console.log(`[Analyze] Starting evaluation for session: ${body.sessionId}`);
+  
+  // 1. Immediately save the transcript so it's visible in the dashboard
+  const { error: transcriptError } = await admin
+    .from("sessions")
+    .update({ transcript: body.transcript })
+    .eq("id", body.sessionId);
 
+  if (transcriptError) {
+    console.error(`[Analyze] Failed to save early transcript:`, transcriptError);
+  }
+
+  // 2. Perform AI Analysis
+  const scorecard = await analyzeTranscript(body.transcript);
+  console.log(`[Analyze] Evaluation complete, updating database scorecard...`);
+
+  // 3. Update the session with the scorecard results
   const { error: updateError } = await admin
     .from("sessions")
     .update({
-      transcript: body.transcript,
       scorecard,
-      overall_score: scorecard.overall_score,
+      overall_score: Math.round(scorecard.overall_score),
       recommendation: scorecard.recommendation,
       status: "analyzed",
       completed_at: new Date().toISOString(),
@@ -56,8 +70,10 @@ export async function POST(request: Request) {
     .eq("id", body.sessionId);
 
   if (updateError) {
+    console.error(`[Analyze] Scorecard update FAILED:`, updateError);
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
+  console.log(`[Analyze] Session ${body.sessionId} fully processed.`);
   return NextResponse.json({ scorecard: scorecard as ScoreCard, cached: false });
 }

@@ -18,6 +18,7 @@ export interface ScoreCard {
   overall_score: number;
   recommendation: Recommendation;
   summary: string;
+  evaluated_by?: string;
 }
 
 export interface TranscriptEntry {

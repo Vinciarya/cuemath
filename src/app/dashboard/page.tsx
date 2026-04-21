@@ -62,7 +62,7 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <header className="flex flex-col gap-6 rounded-[2rem] border border-slate-200 bg-white px-8 py-8 shadow-lg shadow-slate-200/40 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-3">
-          <p className="text-sm font-medium uppercase tracking-[0.16em] text-sky-700">
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-sky-800">
             Recruiter Dashboard
           </p>
           <h1 className={`${fraunces.className} text-4xl font-semibold tracking-tight text-slate-950`}>
@@ -85,7 +85,7 @@ export default async function DashboardPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-y-3">
               <thead>
-                <tr className="text-left text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                <tr className="text-left text-xs font-black uppercase tracking-[0.2em] text-slate-500">
                   <th className="pb-2">Title</th>
                   <th className="pb-2">Sessions</th>
                   <th className="pb-2">Avg Score</th>
@@ -101,7 +101,7 @@ export default async function DashboardPage() {
                     <td className="px-4 py-4">{row.sessionCount}</td>
                     <td className="px-4 py-4">{row.avgScore}</td>
                     <td className="px-4 py-4">
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-600">
                         {row.status}
                       </span>
                     </td>

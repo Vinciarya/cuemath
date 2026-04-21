@@ -95,14 +95,14 @@ export function ScoreCard({ scorecard, candidateName }: ScoreCardProps) {
                />
             </div>
 
-            <p className="text-sm leading-relaxed text-slate-600 mb-6 font-medium">
+            <p className="text-sm leading-relaxed text-slate-700 mb-6 font-semibold">
               {details.reasoning}
             </p>
 
             {details.quote && (
               <div className="relative rounded-2xl bg-slate-50 p-5 pt-8">
                 <Quote className="absolute top-4 left-4 h-5 w-5 text-slate-200" />
-                <p className="text-xs italic text-slate-500 leading-relaxed relative z-10">
+                <p className="text-xs italic text-slate-600 leading-relaxed relative z-10 font-bold">
                   {details.quote}
                 </p>
               </div>

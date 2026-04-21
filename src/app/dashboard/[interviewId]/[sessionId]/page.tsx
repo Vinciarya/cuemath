@@ -119,29 +119,30 @@ export default async function SessionResultsPage({
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-8 max-w-4xl mx-auto">
+            <div className="flex flex-col gap-6 max-w-3xl mx-auto">
               {transcript.map((entry, index) => {
-                const isAi = entry.role === "ai";
+                const isAi = entry.role === 'ai';
                 return (
-                  <div key={`${entry.timestamp}-${index}`} className={`flex ${isAi ? "justify-start" : "justify-end"}`}>
-                    <div className={`flex flex-col ${isAi ? "items-start" : "items-end"} max-w-[85%]`}>
-                       <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                             {isAi ? "Cuemath AI" : session.candidate_name || "Candidate"}
-                          </span>
-                       </div>
-                      <div
-                        className={
-                          isAi
-                            ? "rounded-[1.5rem] rounded-tl-none bg-slate-100 px-6 py-4 text-slate-800 shadow-sm"
-                            : "rounded-[1.5rem] rounded-tr-none bg-emerald-600 px-6 py-4 text-white shadow-emerald-200 shadow-lg"
-                        }
-                      >
-                        <p className="text-base leading-relaxed">{entry.content}</p>
-                      </div>
-                      <p className="mt-2 text-[10px] text-slate-400 font-medium font-mono">
+                  <div 
+                    key={index} 
+                    className={`flex flex-col ${isAi ? 'items-start' : 'items-end'} gap-2`}
+                  >
+                    <div className="flex items-center gap-2 px-1">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        {isAi ? 'Cuemath AI' : session.candidate_name || 'Candidate'}
+                      </span>
+                      <div className="h-1 w-1 rounded-full bg-slate-300" />
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">
                         {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
-                      </p>
+                      </span>
+                    </div>
+                    
+                    <div className={`max-w-[85%] rounded-[1.75rem] px-6 py-4 text-sm leading-relaxed shadow-sm ${
+                      isAi 
+                        ? 'bg-slate-50 border border-slate-100 text-slate-800 rounded-tl-none' 
+                        : 'bg-slate-900 text-white rounded-tr-none shadow-xl shadow-slate-200'
+                    }`}>
+                      {entry.content || <em className="opacity-50 text-xs italic">No response recorded</em>}
                     </div>
                   </div>
                 );
