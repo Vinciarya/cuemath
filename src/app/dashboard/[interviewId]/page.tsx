@@ -3,6 +3,7 @@ import { Fraunces } from "next/font/google";
 import { notFound, redirect } from "next/navigation";
 
 import { ShareableLink } from "@/components/ShareableLink";
+import { normalizeInterviewScript } from "@/lib/questions";
 import { createClient } from "@/lib/server";
 
 const fraunces = Fraunces({
@@ -44,7 +45,7 @@ export default async function InterviewResultsPage({
 
   const { data: interview, error: interviewError } = await supabase
     .from("interviews")
-    .select("id, title, token, status, created_at")
+    .select("id, title, token, status, created_at, questions")
     .eq("id", interviewId)
     .eq("recruiter_id", user.id)
     .single();
@@ -52,6 +53,8 @@ export default async function InterviewResultsPage({
   if (interviewError || !interview) {
     notFound();
   }
+
+  const script = normalizeInterviewScript(interview.questions);
 
   const { data: sessions, error: sessionsError } = await supabase
     .from("sessions")
@@ -77,6 +80,9 @@ export default async function InterviewResultsPage({
           <h1 className={`${fraunces.className} mt-4 text-4xl font-semibold tracking-tight text-slate-950`}>
             {interview.title}
           </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            Voice agent: <span className="font-semibold text-slate-700">{script.voiceAgent.name}</span>
+          </p>
 
           <ShareableLink url={shareableUrl} />
         </div>

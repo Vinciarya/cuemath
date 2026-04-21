@@ -4,10 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, MicIcon, SpeakerIcon } from "lucide-react";
 import { DM_Sans, Fraunces } from "next/font/google";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 
-import { CUEMATH_QUESTIONS } from "@/lib/questions";
-import type { TranscriptEntry } from "@/types";
+import type { InterviewQuestion, TranscriptEntry } from "@/types";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -24,6 +22,9 @@ type InterviewState = "idle" | "speaking" | "listening" | "processing" | "thank-
 type VoiceInterviewProps = {
   sessionId: string;
   candidateName: string;
+  questions: InterviewQuestion[];
+  voiceAgentId: string;
+  voiceAgentName: string;
   onComplete: () => void;
 };
 
@@ -63,15 +64,6 @@ declare global {
   }
 }
 
-const STATUS_COPY: Record<InterviewState, string> = {
-  idle: "Preparing your interview...",
-  speaking: "AI is speaking...",
-  listening: "Your turn - speak now",
-  processing: "Analyzing your responses...",
-  "thank-you": "Interview complete",
-  completed: "Interview complete",
-};
-
 const CLOSING_MESSAGE = "Thank you so much! That's all our questions. We'll be in touch soon.";
 
 function nowIso() {
@@ -81,6 +73,9 @@ function nowIso() {
 export function VoiceInterview({
   sessionId,
   candidateName,
+  questions,
+  voiceAgentId,
+  voiceAgentName,
   onComplete,
 }: VoiceInterviewProps) {
   const [interviewState, setInterviewState] = useState<InterviewState>("idle");
@@ -101,18 +96,18 @@ export function VoiceInterview({
   const hasStartedRef = useRef(false);
   const handledCurrentSpeechRef = useRef(false);
   const isMountedRef = useRef(true);
-
-  // Audio Recording Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  const safeQuestions = useMemo(() => questions.filter((question) => question.text.trim().length > 0), [questions]);
+
   const completedDots = useMemo(() => {
     if (interviewState === "completed") {
-      return CUEMATH_QUESTIONS.length;
+      return safeQuestions.length;
     }
 
     return currentQuestionIndex;
-  }, [currentQuestionIndex, interviewState]);
+  }, [currentQuestionIndex, interviewState, safeQuestions.length]);
 
   useEffect(() => {
     interviewStateRef.current = interviewState;
@@ -141,6 +136,11 @@ export function VoiceInterview({
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
+      // Try to find a good Indian English or high-quality English voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => v.lang.includes('en-IN') || v.name.includes('Google US English'));
+      if (preferredVoice) utterance.voice = preferredVoice;
+      
       utterance.lang = "en-IN";
       utterance.onend = () => resolve();
       utterance.onerror = () => resolve();
@@ -151,51 +151,88 @@ export function VoiceInterview({
   }, []);
 
   const playAudio = useCallback(
-    (audioSrc: string, fallbackText: string) => {
-      return new Promise<void>((resolve, reject) => {
+    (text: string) => {
+      return new Promise<void>(async (resolve, reject) => {
         if (audioRef.current) {
           audioRef.current.pause();
           audioRef.current.currentTime = 0;
         }
 
-        const audio = new Audio(audioSrc);
-        audioRef.current = audio;
+        try {
+          const response = await fetch("/api/voice", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              text,
+              voiceId: voiceAgentId,
+            }),
+          });
 
-        let settled = false;
-
-        const resolveOnce = () => {
-          if (settled) {
-            return;
+          if (!response.ok) {
+            throw new Error("Voice generation failed.");
           }
-          settled = true;
-          resolve();
-        };
 
-        const rejectOnce = (error: Error) => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-          reject(error);
-        };
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          const audio = new Audio(objectUrl);
+          audioRef.current = audio;
 
-        const fallbackToSpeech = () => {
-          void speakFallback(fallbackText)
-            .then(resolveOnce)
-            .catch(() => rejectOnce(new Error(`Failed to play audio and speech fallback: ${audioSrc}`)));
-        };
+          let settled = false;
 
-        audio.onended = () => resolveOnce();
-        audio.onerror = () => fallbackToSpeech();
+          const cleanup = () => {
+            URL.revokeObjectURL(objectUrl);
+          };
 
-        void audio.play().catch(() => fallbackToSpeech());
+          const resolveOnce = () => {
+            if (settled) {
+              return;
+            }
+
+            settled = true;
+            cleanup();
+            resolve();
+          };
+
+          const fallbackToSpeech = () => {
+            void speakFallback(text)
+              .then(() => {
+                if (settled) {
+                  return;
+                }
+
+                settled = true;
+                cleanup();
+                resolve();
+              })
+              .catch(() => {
+                if (settled) {
+                  return;
+                }
+
+                settled = true;
+                cleanup();
+                reject(new Error("Audio playback failed."));
+              });
+          };
+
+          audio.onended = resolveOnce;
+          audio.onerror = fallbackToSpeech;
+
+          void audio.play().catch(() => fallbackToSpeech());
+        } catch {
+          void speakFallback(text)
+            .then(resolve)
+            .catch(() => reject(new Error("Audio playback failed.")));
+        }
       });
     },
-    [speakFallback]
+    [speakFallback, voiceAgentId]
   );
 
   const playClosingMessage = useCallback(async () => {
-    await playAudio("/audio/closing.wav", CLOSING_MESSAGE);
+    await playAudio(CLOSING_MESSAGE);
   }, [playAudio]);
 
   const startListening = useCallback(() => {
@@ -216,7 +253,7 @@ export function VoiceInterview({
   }, []);
 
   const speakPrompt = useCallback(
-    async (text: string, audioSrc: string) => {
+    async (text: string) => {
       stopRecognition();
       setInterviewState("speaking");
       appendTranscript({
@@ -225,7 +262,7 @@ export function VoiceInterview({
         timestamp: nowIso(),
       });
 
-      await playAudio(audioSrc, text);
+      await playAudio(text);
 
       if (isMountedRef.current) {
         startListening();
@@ -238,7 +275,6 @@ export function VoiceInterview({
     async (candidateText: string, isFinalForceEnd = false) => {
       const trimmedText = candidateText.trim();
 
-      // We allow empty text ONLY if it's a force-end signal
       if (!isFinalForceEnd && (!trimmedText || isProcessingRef.current)) {
         return;
       }
@@ -253,18 +289,18 @@ export function VoiceInterview({
         timestamp: nowIso(),
       });
 
-      const activeQuestion = CUEMATH_QUESTIONS[currentQuestionIndexRef.current];
+      const activeQuestion = safeQuestions[currentQuestionIndexRef.current];
       const wordCount = trimmedText.split(/\s+/).filter(Boolean).length;
 
       try {
-        if (activeQuestion.followUp && !askedFollowUpRef.current && wordCount < 25) {
+        if (activeQuestion?.followUp && !askedFollowUpRef.current && wordCount < 25) {
           askedFollowUpRef.current = true;
           setAskedFollowUp(true);
-          await speakPrompt(activeQuestion.followUp.text, activeQuestion.followUp.audioSrc);
+          await speakPrompt(activeQuestion.followUp.text);
           return;
         }
 
-        if (!isFinalForceEnd && currentQuestionIndexRef.current < CUEMATH_QUESTIONS.length - 1) {
+        if (!isFinalForceEnd && currentQuestionIndexRef.current < safeQuestions.length - 1) {
           const nextIndex = currentQuestionIndexRef.current + 1;
           currentQuestionIndexRef.current = nextIndex;
           askedFollowUpRef.current = false;
@@ -272,15 +308,13 @@ export function VoiceInterview({
           setCurrentQuestionIndex(nextIndex);
           setAskedFollowUp(false);
 
-          const nextQuestion = CUEMATH_QUESTIONS[nextIndex];
-          await speakPrompt(nextQuestion.text, nextQuestion.audioSrc);
+          const nextQuestion = safeQuestions[nextIndex];
+          await speakPrompt(nextQuestion.text);
           return;
         }
 
-        // --- FINAL WRAP UP ---
         setInterviewState("thank-you");
-        
-        // Append Closing Message to transcript
+
         const finalTranscript = appendTranscript({
           role: "ai",
           content: CLOSING_MESSAGE,
@@ -288,40 +322,49 @@ export function VoiceInterview({
         });
 
         await playClosingMessage();
-        
-        // Stop recording
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-          mediaRecorderRef.current.stop();
-        }
 
-        // Fire and forget analysis & upload in background
         const performFinalTasks = async () => {
-           // Small delay to ensure the last chunk is potentially captured
-           await new Promise(r => setTimeout(r, 1000));
-           
-           const recordingBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-           
-           // Background Analysis - Using the final transcript with closing msg
-           fetch("/api/analyze", {
-             method: "POST",
-             headers: { "Content-Type": "application/json" },
-             body: JSON.stringify({ sessionId, transcript: finalTranscript }),
-           }).catch(e => console.error("BG analysis error", e));
+          // Wait for the media recorder to finish stopping and flushing chunks
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+            // Wait for onstop to trigger and clear any internal buffers
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
 
-           // Background Audio Upload
-           if (recordingBlob.size > 0) {
-             const formData = new FormData();
-             formData.append("audio", recordingBlob, `${sessionId}.webm`);
-             formData.append("sessionId", sessionId);
+          const recorderMimeType = mediaRecorderRef.current?.mimeType || "audio/webm";
+          const recordingBlob = new Blob(audioChunksRef.current, { type: recorderMimeType });
 
-             fetch("/api/upload-audio", {
-               method: "POST",
-               body: formData,
-             }).catch(e => console.error("Audio upload error", e));
-           }
+          console.log("Final blob created:", recordingBlob.size, recorderMimeType);
+
+          fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId, transcript: finalTranscript }),
+          }).catch((error) => console.error("BG analysis error", error));
+
+          if (recordingBlob.size > 100) { // Only upload if it's not and empty header
+            const formData = new FormData();
+            const extension = recorderMimeType.includes("mp4") ? "mp4" : "webm";
+            formData.append("audio", recordingBlob, `${sessionId}.${extension}`);
+            formData.append("sessionId", sessionId);
+
+            fetch("/api/upload-audio", {
+              method: "POST",
+              body: formData,
+            }).catch((error) => console.error("Audio upload error", error));
+          } else {
+            console.warn("Skipping audio upload: blob too small or empty");
+          }
+
+          if (isMountedRef.current) {
+            setInterviewState("completed");
+            onComplete();
+          }
         };
 
-        performFinalTasks();
+        void performFinalTasks();
         return;
       } catch (error) {
         setInterviewState("idle");
@@ -333,11 +376,11 @@ export function VoiceInterview({
         setIsProcessing(false);
       }
     },
-    [appendTranscript, onComplete, playClosingMessage, sessionId, speakPrompt]
+    [appendTranscript, onComplete, playClosingMessage, safeQuestions, sessionId, speakPrompt]
   );
 
   const startInterview = useCallback(async () => {
-    if (hasStartedRef.current) {
+    if (hasStartedRef.current || safeQuestions.length === 0) {
       return;
     }
 
@@ -350,23 +393,44 @@ export function VoiceInterview({
     setWarning(null);
 
     try {
-      const firstQuestion = CUEMATH_QUESTIONS[0];
-      await speakPrompt(firstQuestion.text, firstQuestion.audioSrc);
+      const firstQuestion = safeQuestions[0];
+      await speakPrompt(firstQuestion.text);
     } catch {
       setInterviewState("idle");
       setWarning("Unable to start audio playback. Please check your device audio permissions.");
     }
-  }, [speakPrompt]);
+  }, [safeQuestions, speakPrompt]);
 
   const handleDoneTalking = useCallback(() => {
     const manualTranscript = interimTranscript.trim();
-    // If no transcript, we treat it as an explicit signal to END the entire interview
-    const isForceEnd = !manualTranscript;
-
     handledCurrentSpeechRef.current = true;
     stopRecognition();
-    void handleResponse(manualTranscript, isForceEnd);
+    void handleResponse(manualTranscript, false);
   }, [handleResponse, interimTranscript, stopRecognition]);
+
+  const handleSkip = useCallback(() => {
+    handledCurrentSpeechRef.current = true;
+    stopRecognition();
+    // Pass empty string and force the next question
+    void handleResponse("", false);
+  }, [handleResponse, stopRecognition]);
+
+  const handleEndEarly = useCallback(() => {
+    handledCurrentSpeechRef.current = true;
+    stopRecognition();
+    // Pass empty string and force end
+    void handleResponse("", true);
+  }, [handleResponse, stopRecognition]);
+
+  const handleResponseRef = useRef(handleResponse);
+  const startListeningRef = useRef(startListening);
+  const handleDoneTalkingRef = useRef(handleDoneTalking);
+  const startInterviewRef = useRef(startInterview);
+
+  handleResponseRef.current = handleResponse;
+  startListeningRef.current = startListening;
+  handleDoneTalkingRef.current = handleDoneTalking;
+  startInterviewRef.current = startInterview;
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -386,7 +450,6 @@ export function VoiceInterview({
     recognition.interimResults = true;
 
     recognition.onresult = (event) => {
-      let finalTranscript = "";
       let nextInterim = "";
 
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -394,17 +457,19 @@ export function VoiceInterview({
         const transcriptChunk = result[0]?.transcript ?? "";
 
         if (result.isFinal) {
-          finalTranscript += transcriptChunk;
+          const finalValue = transcriptChunk.trim();
+          if (finalValue && !handledCurrentSpeechRef.current) {
+            handledCurrentSpeechRef.current = true;
+            void handleResponseRef.current(finalValue);
+          }
         } else {
           nextInterim += transcriptChunk;
         }
       }
 
-      setInterimTranscript(nextInterim.trim());
-
-      if (finalTranscript.trim() && !handledCurrentSpeechRef.current) {
-        handledCurrentSpeechRef.current = true;
-        void handleResponse(finalTranscript.trim());
+      // Only update interim text if it actually changed to reduce re-renders
+      if (nextInterim.trim() !== interimTranscript) {
+        setInterimTranscript(nextInterim.trim());
       }
     };
 
@@ -420,15 +485,16 @@ export function VoiceInterview({
 
     recognition.onerror = (event: any) => {
       if (!isProcessingRef.current) {
-        if (event.error === 'no-speech' || event.error === 'aborted') {
-           // These are common and usually just mean silence or a restart
-           if (interviewStateRef.current === "listening") {
-             setTimeout(() => {
-               if (interviewStateRef.current === "listening") startListening();
-             }, 500);
-           }
-        } else if (event.error === 'network') {
-          setWarning('Network connection issues detected. Please check your internet and restart below.');
+        if (event.error === "no-speech" || event.error === "aborted") {
+          if (interviewStateRef.current === "listening") {
+            setTimeout(() => {
+              if (interviewStateRef.current === "listening") {
+                startListeningRef.current();
+              }
+            }, 500);
+          }
+        } else if (event.error === "network") {
+          setWarning("Network connection issues detected. Please check your internet and restart below.");
         } else {
           console.error("Speech recognition error:", event.error);
           setWarning(`Microphone error (${event.error}). Try clicking "Done talking" or restart below.`);
@@ -438,176 +504,245 @@ export function VoiceInterview({
 
     recognitionRef.current = recognition;
 
-    // --- MediaRecorder Setup ---
     const startRecording = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
         
+        // Find best supported mimeType
+        const mimeTypes = ["audio/webm", "audio/webm;codecs=opus", "audio/mp4", "audio/aac"];
+        const supportedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || "";
+        
+        const recorder = new MediaRecorder(stream, supportedType ? { mimeType: supportedType } : {});
+
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
             audioChunksRef.current.push(event.data);
           }
         };
 
-        recorder.start(1000); // 1s chunks
+        recorder.onstop = () => {
+          console.log("Recording stopped, total chunks:", audioChunksRef.current.length);
+        };
+
+        recorder.start(1000);
         mediaRecorderRef.current = recorder;
-      } catch (err) {
-        console.error("Recording setup failed:", err);
+      } catch (error) {
+        console.error("Recording setup failed:", error);
       }
     };
 
     void startRecording();
-    void startInterview();
+    void startInterviewRef.current();
 
     return () => {
       isMountedRef.current = false;
-      stopRecognition();
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
       }
+
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
     };
-  }, [handleResponse, startInterview, stopRecognition]);
+  }, []); // Only run once on mount
 
   return (
-    <div className={`${dmSans.className} min-h-screen bg-white text-slate-900 flex flex-col`}>
-      {/* Top Header */}
-      <header className="w-full py-12 text-center space-y-2 border-b border-slate-100">
-        <h1 className={`${fraunces.className} text-2xl font-bold text-slate-900 tracking-tight`}>
-          TutorScreen AI – {candidateName} Interview
+    <div className={`${dmSans.className} flex min-h-screen flex-col bg-white text-slate-900`}>
+      <header className="w-full space-y-2 border-b border-slate-100 py-12 text-center">
+        <h1 className={`${fraunces.className} text-2xl font-bold tracking-tight text-slate-900`}>
+          TutorScreen AI - {candidateName} Interview
         </h1>
-        <div className="flex items-center justify-center gap-2 text-slate-400 text-sm font-medium uppercase tracking-widest">
-           <span>Expected duration: 5 mins or less</span>
+        <div className="flex items-center justify-center gap-2 text-sm font-medium uppercase tracking-widest text-slate-400">
+          <span>{voiceAgentName} is guiding this interview</span>
         </div>
       </header>
 
-      {/* Main Split View */}
-      <main className="flex-1 grid md:grid-cols-2 relative h-full">
-        {/* Vertical Divider */}
-        <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-slate-100 hidden md:block" />
+      <main className="relative grid h-full flex-1 md:grid-cols-2">
+        <div className="absolute bottom-0 left-1/2 top-0 hidden w-[1px] bg-slate-100 md:block" />
 
-        {/* Left: AI Interviewer */}
-        <div className="flex flex-col items-center justify-between p-12 text-center h-[500px] md:h-auto">
+        <div className="flex h-[500px] flex-col items-center justify-between p-12 text-center md:h-auto">
           <div className="max-w-md space-y-6">
-             <AnimatePresence mode="wait">
-                <motion.p 
-                  key={transcript.filter(t => t.role === "ai").pop()?.content}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`${fraunces.className} text-3xl md:text-4xl text-slate-900 leading-tight font-medium`}
-                >
-                  {interviewState === "speaking" || interviewState === "listening" 
-                    ? transcript.filter(t => t.role === "ai").pop()?.content 
-                    : "Ready to start?"}
-                </motion.p>
-             </AnimatePresence>
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={transcript.filter((entry) => entry.role === "ai").pop()?.content}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`${fraunces.className} text-3xl font-medium leading-tight text-slate-900 md:text-4xl`}
+              >
+                {interviewState === "speaking" || interviewState === "listening"
+                  ? transcript.filter((entry) => entry.role === "ai").pop()?.content
+                  : "Ready to start?"}
+              </motion.p>
+            </AnimatePresence>
           </div>
 
           <div className="space-y-4 pt-12">
-            <div className={`w-32 h-32 rounded-full bg-slate-50 border-2 flex items-center justify-center transition-all ${interviewState === 'speaking' ? 'border-emerald-500 scale-110' : 'border-slate-100'}`}>
-              <SpeakerIcon className={`h-12 w-12 ${interviewState === 'speaking' ? 'text-emerald-500' : 'text-slate-300'}`} />
+            <div
+              className={`flex h-32 w-32 items-center justify-center rounded-full border-2 bg-slate-50 transition-all ${
+                interviewState === "speaking" ? "scale-110 border-emerald-500" : "border-slate-100"
+              }`}
+            >
+              <SpeakerIcon
+                className={`h-12 w-12 ${
+                  interviewState === "speaking" ? "text-emerald-500" : "text-slate-300"
+                }`}
+              />
             </div>
-            <p className="font-bold text-sm uppercase tracking-widest text-slate-400">Interviewer</p>
+            <p className="text-sm font-bold uppercase tracking-widest text-slate-400">
+              Interviewer
+            </p>
           </div>
         </div>
 
-        {/* Right: Candidate (You) */}
-        <div className="flex flex-col items-center justify-between p-12 text-center h-[500px] md:h-auto bg-slate-50/50 md:bg-transparent">
+        <div className="flex h-[500px] flex-col items-center justify-between bg-slate-50/50 p-12 text-center md:h-auto md:bg-transparent">
           <div className="max-w-md space-y-6">
             {interimTranscript ? (
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-2xl md:text-3xl font-medium text-slate-800 leading-relaxed"
-                >
-                  {interimTranscript}
-                </motion.p>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-2xl font-medium leading-relaxed text-slate-800 md:text-3xl"
+              >
+                {interimTranscript}
+              </motion.p>
             ) : (
-                <p className="text-xl md:text-2xl text-slate-300 italic font-medium">
-                  {interviewState === "listening" ? "We're listening..." : "Your turn to speak will appear here..."}
-                </p>
+              <p className="text-xl font-medium italic text-slate-300 md:text-2xl">
+                {interviewState === "listening"
+                  ? "We&apos;re listening..."
+                  : "Your turn to speak will appear here..."}
+              </p>
             )}
           </div>
 
           <div className="space-y-4 pt-12">
-             <div className={`w-32 h-32 rounded-full bg-slate-950 border-2 flex items-center justify-center transition-all ${interviewState === 'listening' ? 'border-emerald-500 scale-110 shadow-2xl' : 'border-slate-800'}`}>
-               <MicIcon className={`h-12 w-12 ${interviewState === 'listening' ? 'text-emerald-500' : 'text-white'}`} />
-             </div>
-             <p className="font-bold text-sm uppercase tracking-widest text-slate-400">You</p>
+            <div
+              className={`flex h-32 w-32 items-center justify-center rounded-full border-2 bg-slate-950 transition-all ${
+                interviewState === "listening"
+                  ? "scale-110 border-emerald-500 shadow-2xl"
+                  : "border-slate-800"
+              }`}
+            >
+              <MicIcon
+                className={`h-12 w-12 ${
+                  interviewState === "listening" ? "text-emerald-500" : "text-white"
+                }`}
+              />
+            </div>
+            <p className="text-sm font-bold uppercase tracking-widest text-slate-400">You</p>
           </div>
         </div>
 
-        {/* End Interview / Status Button (Bottom Center) */}
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-6">
-           <AnimatePresence mode="wait">
+        <div className="absolute bottom-12 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-6">
+          <AnimatePresence mode="wait">
             {interviewState === "thank-you" ? (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white p-12 rounded-[2.5rem] shadow-[0_40px_100px_rgba(0,0,0,0.15)] text-center space-y-6 max-w-lg border border-slate-50"
+                className="max-w-lg space-y-6 rounded-[2.5rem] border border-slate-50 bg-white p-12 text-center shadow-[0_40px_100px_rgba(0,0,0,0.15)]"
               >
-                <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h2 className={`${fraunces.className} text-3xl font-bold text-slate-900`}>All done, {candidateName}!</h2>
-                <p className="text-slate-500 leading-relaxed text-lg">
-                  Thank you for sharing your thoughts with us. Your interview has been recorded and our team will review it shortly.
+                <h2 className={`${fraunces.className} text-3xl font-bold text-slate-900`}>
+                  All done, {candidateName}!
+                </h2>
+                <p className="text-lg leading-relaxed text-slate-500">
+                  Thank you for sharing your thoughts with us. Your interview has been recorded and
+                  our team will review it shortly.
                 </p>
               </motion.div>
             ) : interviewState === "processing" ? (
-              <div className="bg-white px-8 h-14 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-100">
-                 <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-                 <span className="font-semibold text-slate-700">Wrapping up...</span>
+              <div className="flex h-14 items-center gap-4 rounded-2xl border border-slate-100 bg-white px-8 shadow-2xl">
+                <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                <span className="font-semibold text-slate-700">Wrapping up...</span>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-6">
                 <AnimatePresence>
-                  {warning && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                      className="bg-amber-50 border border-amber-200 px-6 py-3 rounded-2xl text-sm text-amber-800 flex items-center gap-4 shadow-xl"
+                  {warning ? (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="flex items-center gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-800 shadow-xl"
                     >
                       <p>{warning}</p>
-                      <button onClick={() => { setWarning(null); startListening(); }} className="font-bold underline uppercase text-xs">Restart</button>
+                      <button
+                        onClick={() => {
+                          setWarning(null);
+                          startListeningRef.current();
+                        }}
+                        className="text-xs font-bold uppercase underline"
+                      >
+                        Restart
+                      </button>
                     </motion.div>
-                  )}
+                  ) : null}
                 </AnimatePresence>
 
-                <button
-                  onClick={handleDoneTalking}
-                  disabled={isProcessing}
-                  className="group bg-white h-16 px-10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.15)] transition-all flex items-center gap-4 border border-slate-100 active:scale-95"
-                >
-                  <span className={`${fraunces.className} text-lg font-bold text-slate-900`}>
-                    {interimTranscript ? 'Done Talking' : 'End Interview'}
-                  </span>
-                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-red-50 group-hover:text-red-500 transition-colors">
-                    ✕
+                <div className="flex flex-col items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    {interimTranscript ? (
+                      <button
+                        onClick={handleDoneTalking}
+                        disabled={isProcessing}
+                        className="group flex h-16 items-center gap-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-10 shadow-lg transition-all hover:bg-emerald-100 hover:shadow-xl active:scale-95"
+                      >
+                        <span className={`${fraunces.className} text-lg font-bold text-emerald-900`}>
+                          Done Talking
+                        </span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-200/50 text-emerald-700">
+                          →
+                        </div>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleSkip}
+                        disabled={isProcessing}
+                        className="group flex h-16 items-center gap-4 rounded-2xl border border-slate-100 bg-white px-10 shadow-lg transition-all hover:bg-slate-50 hover:shadow-xl active:scale-95"
+                      >
+                        <span className={`${fraunces.className} text-lg font-bold text-slate-900`}>
+                          Skip Question
+                        </span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                          →
+                        </div>
+                      </button>
+                    )}
                   </div>
-                </button>
+
+                  <button
+                    onClick={handleEndEarly}
+                    disabled={isProcessing}
+                    className="text-xs font-bold uppercase tracking-widest text-slate-400 transition hover:text-red-500"
+                  >
+                    End Interview Early
+                  </button>
+                </div>
               </div>
             )}
-           </AnimatePresence>
+          </AnimatePresence>
 
-           {/* Progress Dots */}
-           <div className="flex gap-2">
-              {CUEMATH_QUESTIONS.map((_, i) => (
-                <div key={i} className={`h-1.5 w-1.5 rounded-full ${i < completedDots ? 'bg-slate-900' : 'bg-slate-200'}`} />
-              ))}
-           </div>
+          <div className="flex gap-2">
+            {safeQuestions.map((question, index) => (
+              <div
+                key={question.id || index}
+                className={`h-1.5 w-1.5 rounded-full ${index < completedDots ? "bg-slate-900" : "bg-slate-200"}`}
+              />
+            ))}
+          </div>
         </div>
       </main>
 
-      {/* Decorative Overlay for Speaking State */}
-      {interviewState === 'listening' && (
-        <div className="fixed inset-0 pointer-events-none ring-[12px] ring-emerald-500/10 animate-pulse z-50" />
-      )}
+      {interviewState === "listening" ? (
+        <div className="pointer-events-none fixed inset-0 z-50 animate-pulse ring-[12px] ring-emerald-500/10" />
+      ) : null}
     </div>
   );
 }

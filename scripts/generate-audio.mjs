@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
 
+dotenv.config({ path: path.join(process.cwd(), '.env.local') });
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const questions = [
@@ -29,16 +30,20 @@ const questions = [
   },
   {
     id: 'q5',
-    text: 'Last question — what do you think makes a truly great math tutor? Not just a good one, but someone a student will remember years later.',
+    text: 'Last question - what do you think makes a truly great math tutor? Not just a good one, but someone a student will remember years later.',
   },
 ];
 
 const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
 const voiceId = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
-const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_v3';
+const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
+const stability = Number(process.env.ELEVENLABS_STABILITY ?? '0.4');
+const similarityBoost = Number(process.env.ELEVENLABS_SIMILARITY_BOOST ?? '0.75');
+const style = Number(process.env.ELEVENLABS_STYLE ?? '0.3');
+const useSpeakerBoost = (process.env.ELEVENLABS_USE_SPEAKER_BOOST ?? 'true') === 'true';
 
 if (!elevenLabsApiKey) {
-  console.error('Error: ELEVENLABS_API_KEY is missing from .env.');
+  console.error('Error: ELEVENLABS_API_KEY is missing from .env.local or .env.');
   process.exit(1);
 }
 
@@ -49,6 +54,8 @@ async function generateAudio() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
+  console.log(`Using ElevenLabs voice ${voiceId} with model ${modelId}`);
+
   for (const question of questions) {
     const filename = `${question.id}.mp3`;
     const outputPath = path.join(outputDir, filename);
@@ -56,25 +63,24 @@ async function generateAudio() {
     console.log(`Generating audio for ${question.id}...`);
 
     try {
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-        {
-          method: 'POST',
-          headers: {
-            'xi-api-key': elevenLabsApiKey,
-            'Content-Type': 'application/json',
-            Accept: 'audio/mpeg',
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': elevenLabsApiKey,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+        },
+        body: JSON.stringify({
+          text: question.text,
+          model_id: modelId,
+          voice_settings: {
+            stability,
+            similarity_boost: similarityBoost,
+            style,
+            use_speaker_boost: useSpeakerBoost,
           },
-          body: JSON.stringify({
-            text: question.text,
-            model_id: modelId,
-            voice_settings: {
-              stability: 0.6,
-              similarity_boost: 0.75,
-            },
-          }),
-        }
-      );
+        }),
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -91,7 +97,7 @@ async function generateAudio() {
     }
   }
 
-  console.log('Audio generation complete!');
+  console.log('Audio generation complete.');
 }
 
 generateAudio();

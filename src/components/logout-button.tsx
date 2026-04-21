@@ -11,7 +11,9 @@ export function LogoutButton() {
   const logout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/auth/login')
+    // Using window.location.href for a full reload ensures that the client-side 
+    // cache is cleared and the back button won't show protected content.
+    window.location.href = '/auth/login'
   }
 
   return (

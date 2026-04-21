@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Fraunces } from "next/font/google";
 import { notFound, redirect } from "next/navigation";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import { ScoreCard } from "@/components/ScoreCard";
 import { createClient } from "@/lib/server";
@@ -108,8 +110,13 @@ export default async function SessionResultsPage({
 
         <div className="space-y-8">
           {transcript.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-slate-400 font-medium">Transcript not available yet or session was interrupted.</p>
+            <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <p className="text-slate-500 font-medium tracking-tight">
+                Transcript not available yet.
+              </p>
+              <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest font-bold">
+                Current Status: {session.status || "Unknown"}
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-8 max-w-4xl mx-auto">

@@ -39,13 +39,14 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: If you remove getClaims() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
-  const { data } = await supabase.auth.getClaims()
-  const user = data?.claims
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (
     !user &&
-    !request.nextUrl.pathname.startsWith('/auth/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
+    !request.nextUrl.pathname.startsWith('/auth') &&
+    !request.nextUrl.pathname.startsWith('/interview')
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
@@ -65,6 +66,17 @@ export async function updateSession(request: NextRequest) {
   //    return myNewResponse
   // If this is not done, you may be causing the browser and server to go out
   // of sync and terminate the user's session prematurely!
+
+  // For protected routes (everything except /auth and /interview), 
+  // set headers to prevent the browser from caching the page.
+  // This ensures that the 'Back' button won't show protected content after sign-out.
+  if (
+    !request.nextUrl.pathname.startsWith('/auth') &&
+    !request.nextUrl.pathname.startsWith('/interview') &&
+    request.nextUrl.pathname !== '/'
+  ) {
+    supabaseResponse.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  }
 
   return supabaseResponse
 }

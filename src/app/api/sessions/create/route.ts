@@ -17,6 +17,21 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Check if any session already exists for this unique interview link
+  const { data: existingSession } = await admin
+    .from("sessions")
+    .select("id, candidate_name")
+    .eq("interview_id", body.interviewId)
+    .maybeSingle();
+
+  if (existingSession) {
+    return NextResponse.json(
+      { error: `This interview link has already been used by ${existingSession.candidate_name}. Each link is unique and can only be used once.` },
+      { status: 403 }
+    );
+  }
+
   const { data, error } = await admin
     .from("sessions")
     .insert({

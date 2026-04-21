@@ -12,18 +12,25 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
+    const BUCKET_NAME = "interview-audio";
 
     // 1. Upload to Supabase Storage
     const fileName = `${sessionId}.webm`;
     const { data: uploadData, error: uploadError } = await admin.storage
-      .from("interview-audio")
+      .from(BUCKET_NAME)
       .upload(fileName, audioFile, {
         contentType: "audio/webm",
         upsert: true,
       });
 
     if (uploadError) {
-      // If bucket doesn't exist, we might need to handle it or just log it
+      if (uploadError.message.includes("Bucket not found")) {
+        console.error(`CRITICAL: Storage bucket "${BUCKET_NAME}" does not exist. Please create it in your Supabase dashboard.`);
+        return NextResponse.json({ 
+          error: `Storage bucket "${BUCKET_NAME}" not found. Please ensure it is created in Supabase.`,
+          code: "BUCKET_NOT_FOUND"
+        }, { status: 404 });
+      }
       console.error("Storage upload error:", uploadError);
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }

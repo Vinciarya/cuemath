@@ -30,7 +30,9 @@ create table sessions (
   status text default 'pending',
   started_at timestamptz default now(),
   completed_at timestamptz,
-  duration_seconds integer
+  duration_seconds integer,
+  audio_url text,
+  unique(interview_id)
 );
 
 -- RLS Policies
@@ -78,3 +80,10 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- NOTE: Please ensure you create a storage bucket named "interview-audio" in Supabase.
+-- 1. Create bucket: "interview-audio"
+-- 2. Toggle "Public bucket" to ON (Important: required for audio player to work).
+-- 3. Set RLS Policies for the bucket:
+--    - allow all users to 'SELECT' (Read)
+--    - allow all users to 'INSERT' and 'UPDATE' (for candidates to upload)

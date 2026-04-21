@@ -2,10 +2,11 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { DM_Sans, Fraunces } from "next/font/google";
-import { MicIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { MicIcon, Volume2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
 import { VoiceInterview } from "@/components/VoiceInterview";
+import { normalizeInterviewScript } from "@/lib/questions";
 import type { Interview } from "@/types";
 
 const fraunces = Fraunces({
@@ -19,7 +20,7 @@ const dmSans = DM_Sans({
 });
 
 type InterviewShellProps = {
-  interview: Pick<Interview, "id" | "title" | "token">;
+  interview: Pick<Interview, "id" | "title" | "token" | "questions">;
 };
 
 type Screen = 1 | 2 | 3;
@@ -32,11 +33,13 @@ export function InterviewShell({ interview }: InterviewShellProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const script = useMemo(() => normalizeInterviewScript(interview.questions), [interview.questions]);
+
   const canStart = useMemo(() => {
     return candidateName.trim().length > 1 && /\S+@\S+\.\S+/.test(candidateEmail.trim());
   }, [candidateEmail, candidateName]);
 
-  async function handleStart() {
+  const handleStart = useCallback(async () => {
     if (!canStart) {
       setError("Please enter your full name and a valid email.");
       return;
@@ -74,7 +77,9 @@ export function InterviewShell({ interview }: InterviewShellProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [canStart, candidateEmail, candidateName, interview.id]);
+
+  const handleComplete = useCallback(() => setScreen(3), []);
 
   return (
     <div
@@ -94,13 +99,21 @@ export function InterviewShell({ interview }: InterviewShellProps) {
             <div className="w-full max-w-2xl rounded-[2rem] border border-white/70 bg-white/85 p-8 shadow-2xl shadow-slate-200/60 backdrop-blur">
               <p className={`${fraunces.className} text-xl font-semibold text-[#2D5F3F]`}>Cuemath</p>
               <h1 className={`${fraunces.className} mt-4 text-4xl font-semibold tracking-tight text-slate-950`}>
-                You're invited to a voice interview
+                You&apos;re invited to a voice interview
               </h1>
               <p className="mt-4 text-base leading-7 text-slate-600">
-                This is a 5-minute AI-powered screening. Answer naturally - there are no trick
+                This is a short AI-powered screening. Answer naturally. There are no trick
                 questions.
               </p>
               <p className="mt-2 text-sm leading-7 text-slate-500">{interview.title}</p>
+
+              <div className="mt-6 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
+                <Volume2 className="mt-0.5 h-5 w-5 shrink-0 text-[#2D5F3F]" />
+                <div>
+                  <p className="font-semibold text-slate-900">Interviewer voice</p>
+                  <p>{script.voiceAgent.name}</p>
+                </div>
+              </div>
 
               <div className="mt-8 grid gap-5">
                 <label className="grid gap-2">
@@ -142,7 +155,7 @@ export function InterviewShell({ interview }: InterviewShellProps) {
                 disabled={isSubmitting}
                 className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#2D5F3F] px-6 text-sm font-semibold text-white transition hover:bg-[#254F34] disabled:cursor-not-allowed disabled:bg-[#7FA08A]"
               >
-                {isSubmitting ? "Starting..." : "Start Interview →"}
+                {isSubmitting ? "Starting..." : "Start Interview ->"}
               </button>
             </div>
           </motion.div>
@@ -159,7 +172,10 @@ export function InterviewShell({ interview }: InterviewShellProps) {
             <VoiceInterview
               sessionId={sessionId}
               candidateName={candidateName.trim()}
-              onComplete={() => setScreen(3)}
+              questions={script.items}
+              voiceAgentId={script.voiceAgent.id}
+              voiceAgentName={script.voiceAgent.name}
+              onComplete={handleComplete}
             />
           </motion.div>
         ) : null}

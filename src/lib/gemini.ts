@@ -3,10 +3,15 @@ import "server-only";
 import type { ScoreCard, TranscriptEntry } from "@/types";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GEMINI_MODEL = "gemini-flash-latest";
 
 if (!GEMINI_API_KEY) {
   console.warn("WARNING: GEMINI_API_KEY is not defined in environment variables.");
+}
+
+if (!GROQ_API_KEY) {
+  console.warn("WARNING: GROQ_API_KEY is not defined in environment variables.");
 }
 
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
@@ -84,8 +89,8 @@ export async function analyzeTranscript(transcript: TranscriptEntry[]): Promise<
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Gemini API error (${response.status}): ${JSON.stringify(errorData)}`);
+      console.warn(`Gemini API error (${response.status}). Trying Groq fallback...`);
+      return await analyzeTranscriptWithGroq(transcriptText);
     }
 
     const data = await response.json();
@@ -95,12 +100,76 @@ export async function analyzeTranscript(transcript: TranscriptEntry[]): Promise<
       throw new Error("No text response in Gemini payload");
     }
 
-    return JSON.parse(textResponse) as ScoreCard;
+    let cleanedResponse = textResponse.trim();
+    if (cleanedResponse.startsWith("```")) {
+      cleanedResponse = cleanedResponse.replace(/^```(json)?/, "").replace(/```$/, "").trim();
+    }
+
+    try {
+      return JSON.parse(cleanedResponse) as ScoreCard;
+    } catch (parseError) {
+      console.error("Failed to parse Gemini JSON:", parseError, textResponse);
+      throw parseError;
+    }
   } catch (error) {
-    console.error("Critical error in analyzeTranscript:", error);
-    return {
-      ...fallbackScoreCard,
-      summary: `AI Evaluation Error: ${error instanceof Error ? error.message : "The system encountered an unexpected bottleneck. Please check the transcript manually."}`
-    };
+    console.warn("Gemini request failed. Attempting Groq fallback...", error);
+    try {
+      return await analyzeTranscriptWithGroq(transcriptText);
+    } catch (groqError) {
+      console.error("Groq fallback also failed:", groqError);
+      return {
+        ...fallbackScoreCard,
+        summary: `AI Evaluation Error: Both Gemini and Groq failed. Original error: ${error instanceof Error ? error.message : "Service unavailable"}`
+      };
+    }
+  }
+
+  return fallbackScoreCard;
+}
+
+export async function analyzeTranscriptWithGroq(transcriptText: string): Promise<ScoreCard> {
+  if (!GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is not defined");
+  }
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Transcript for Analysis:\n${transcriptText}` },
+      ],
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Groq API error (${response.status}): ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await response.json();
+  const textResponse = data.choices?.[0]?.message?.content;
+
+  if (!textResponse) {
+    throw new Error("No text response in Groq payload");
+  }
+
+  let cleanedResponse = textResponse.trim();
+  if (cleanedResponse.startsWith("```")) {
+    cleanedResponse = cleanedResponse.replace(/^```(json)?/, "").replace(/```$/, "").trim();
+  }
+
+  try {
+    return JSON.parse(cleanedResponse) as ScoreCard;
+  } catch (parseError) {
+    console.error("Failed to parse Groq JSON:", parseError, textResponse);
+    throw parseError;
   }
 }
