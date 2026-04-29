@@ -5,7 +5,17 @@ import { Button } from '@/components/ui/button'
 const fraunces = Fraunces({ subsets: ['latin'], display: 'swap' })
 const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap' })
 
-export default function LandingPage() {
+import { createClient } from '@/lib/server'
+import { redirect } from 'next/navigation'
+
+export default async function LandingPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (user) {
+    redirect('/dashboard')
+  }
+
   const sections = [
     { delay: '0s', content: (
       <nav className="max-w-7xl mx-auto px-6 py-8 flex justify-between items-center">
