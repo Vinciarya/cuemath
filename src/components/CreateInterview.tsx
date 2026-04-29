@@ -142,7 +142,6 @@ export function CreateInterview({ appUrl }: CreateInterviewProps) {
 
         if (payload.fallbackToBrowserTts) {
           await speakPreviewFallback(voiceAgent.previewText);
-          setPreviewNotice("Using browser voice preview because ElevenLabs is unavailable.");
           return;
         }
 
@@ -425,7 +424,7 @@ export function CreateInterview({ appUrl }: CreateInterviewProps) {
               </div>
             </div>
 
-            {error ? (
+            {error && !error.includes("ElevenLabs") ? (
               <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 {error}
               </div>

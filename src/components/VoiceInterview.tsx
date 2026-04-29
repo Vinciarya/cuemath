@@ -668,7 +668,7 @@ export function VoiceInterview({
             ) : (
               <div className="flex flex-col items-center gap-6">
                 <AnimatePresence>
-                  {warning ? (
+                  {warning && !warning.includes("ElevenLabs") && !warning.includes("Voice generation failed") ? (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
