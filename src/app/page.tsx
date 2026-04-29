@@ -19,7 +19,7 @@ export default async function LandingPage() {
   const sections = [
     { delay: '0s', content: (
       <nav className="max-w-7xl mx-auto px-6 py-8 flex justify-between items-center">
-        <span className={`${fraunces.className} text-2xl font-bold text-[#2D5F3F]`}>TutorScreen AI</span>
+        <span className={`${fraunces.className} text-2xl font-bold text-[#2D5F3F]`}>CueMath</span>
         <Button variant="ghost" asChild className="text-[#2D5F3F] hover:bg-[#2D5F3F]/10 font-medium">
           <Link href="/login">Sign In</Link>
         </Button>

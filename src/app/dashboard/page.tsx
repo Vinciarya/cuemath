@@ -67,7 +67,7 @@ export default async function DashboardPage() {
             Recruiter Dashboard
           </p>
           <h1 className={`${fraunces.className} text-4xl font-semibold tracking-tight text-slate-950`}>
-            TutorScreen AI
+            CueMath
           </h1>
         </div>
 

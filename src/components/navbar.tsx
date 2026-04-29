@@ -8,11 +8,11 @@ function Navbar() {
         <div className="flex items-center gap-4">
           <Link href={"/dashboard"} className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white shadow-lg shadow-slate-300">
-              TS
+              CM
             </div>
             <div className="space-y-0.5">
               <p className="text-lg font-semibold tracking-tight text-slate-950">
-                TutorScreen AI
+                CueMath
               </p>
               <p className="text-sm text-slate-500">Cuemath tutor screening workspace</p>
             </div>

@@ -22,7 +22,7 @@ export function AuthShell({
             <span className="auth-panel-chip">{eyebrow}</span>
             <div className="space-y-4">
               <h1 className="max-w-xl text-4xl font-semibold tracking-tight text-white">
-                TutorScreen AI for modern tutor hiring.
+                CueMath for modern tutor hiring.
               </h1>
               <p className="max-w-lg text-base leading-7 text-slate-300">
                 Review candidates with structured interviews, consistent scoring, and a calmer

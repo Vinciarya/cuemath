@@ -558,7 +558,7 @@ export function VoiceInterview({
     <div className={`${dmSans.className} flex min-h-screen flex-col bg-white text-slate-900`}>
       <header className="w-full space-y-2 border-b border-slate-100 py-12 text-center">
         <h1 className={`${fraunces.className} text-2xl font-bold tracking-tight text-slate-900`}>
-          TutorScreen AI - {candidateName} Interview
+          CueMath - {candidateName} Interview
         </h1>
         <div className="flex items-center justify-center gap-2 text-sm font-medium uppercase tracking-widest text-slate-400">
           <span>{voiceAgentName} is guiding this interview</span>

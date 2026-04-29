@@ -6,7 +6,7 @@ export const VOICE_AGENTS: VoiceAgent[] = [
     name: "Rachel",
     description: "Professional and clear. A standard, reliable choice for screening.",
     previewText:
-      "Hello, and welcome to TutorScreen AI for Cuemath. I will guide you through a short voice interview today.",
+      "Hello, and welcome to CueMath. I will guide you through a short voice interview today.",
     settings: {
       modelId: "eleven_turbo_v2",
       stability: 0.4,

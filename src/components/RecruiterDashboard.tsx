@@ -94,7 +94,7 @@ export function RecruiterDashboard({ recruiterEmail, interviews }: RecruiterDash
             Create Interview
           </p>
           <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
-            Launch a new TutorScreen AI link
+            Launch a new CueMath link
           </h2>
           <p className="mt-3 text-sm leading-7 text-slate-600">
             Every interview uses the Cuemath question bank automatically and generates a unique share
